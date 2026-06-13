@@ -1,6 +1,6 @@
-# MCO — AI-Powered Operations Platform
+# MCO — Mission Control Operations
 
-MCO is an AI-powered operations platform for VMware environments. Whether you run vCenter alone, vCenter with VMware Operations, or a full VMware Cloud Foundation stack — MCO gives you a single place to understand your environment health, assess readiness, hunt for vulnerabilities, and take action.
+MCO (Mission Control Operations) is an AI-powered platform for infrastructure, security, and IT operations teams. One portal for your whole team — fleet visibility, vulnerability scanning, Active Directory security, audit logging, compliance exports, AI-assisted scripting, and more.
 
 **Key capabilities:**
 - AI-generated analysis and plain-English explanations of your environment health
