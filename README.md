@@ -129,6 +129,45 @@ Deterministic — no AI involved in the score calculation. The score is computed
 
 ---
 
+## Running fully on-premises with Ollama
+
+MCO works without any cloud AI provider. Set `llm.provider: ollama` in your values file and point it at an Ollama instance — everything runs inside your network.
+
+**Compute requirements for Ollama:**
+
+| Model size | vCPU | RAM | GPU |
+|------------|------|-----|-----|
+| 7B (e.g. mistral, llama3) | 8 | 16 GB | optional — CPU inference works |
+| 14B (e.g. qwen2.5:14b) | 16 | 32 GB | recommended (NVIDIA, 8 GB VRAM+) |
+| 32B+ (e.g. qwen2.5:32b) | 32 | 64 GB | required (24 GB VRAM+) |
+
+**Recommended models** (pull with `ollama pull <model>`):
+
+| Model | Best for | Notes |
+|-------|---------|-------|
+| `qwen2.5:14b` | General analysis, agent, workspace | Best quality/performance balance for air-gapped environments |
+| `mistral:7b` | Fast responses, low-resource nodes | Good for fleet queries and quick questions |
+| `llama3.1:8b` | General purpose | Strong reasoning, widely tested |
+| `codellama:13b` | PowerCLI / script generation | Tuned for code tasks |
+| `nomic-embed-text` | RAG / context retrieval | Required if using the Agent with document context |
+
+**Best practices:**
+- Run Ollama on a dedicated node or VM — do not share with workload pods
+- Use GPU if running 14B or larger; CPU inference on 14B takes 30–90 seconds per request
+- Set `OLLAMA_NUM_PARALLEL=1` on low-memory nodes to avoid OOM
+- Point MCO at Ollama via `http://ollama:11434` if running in the same cluster, or at any reachable host/IP
+- All model data stays inside your network — no outbound calls
+
+Configure in `my-values.yaml`:
+```yaml
+llm:
+  provider: ollama
+  ollamaUrl: http://ollama:11434
+  ollamaModel: qwen2.5:14b
+```
+
+---
+
 ## Documentation
 
 - [Installation Guide](docs/install.md)
