@@ -47,38 +47,38 @@ Point DNS at the EXTERNAL-IP and open `https://your-domain.com`.
 
 | Page | What it does |
 |------|-------------|
-| **Fleet** | Live overview of hosts, VMs, clusters, datastores, version, and score trend |
-| **Analysis** | Ask a question; get a deterministic readiness score + AI explanation in under a minute |
-| **Platform Console** | Full Kubernetes visibility — pods, workloads, network policies, RBAC, secrets, PVCs |
-| **Trends** | Score history charts and per-dimension sparklines over time |
-| **Archive** | Browse and compare historical analysis results |
+| **Fleet** | See every host, VM, cluster, and datastore in one view — CPU headroom, memory pressure, storage latency, version drift, and a live readiness score. Know the state of your environment before your monitoring tool tells you something broke. |
+| **Analysis** | Ask any question about your environment in plain English and get back a scored readiness report with AI-generated findings, risks, and recommended actions — in under a minute. Covers capacity, platform health, HCL compatibility, host state, and more. |
+| **Platform Console** | Full Kubernetes visibility without leaving the platform — browse namespaces, pods, workloads, network policies, RBAC roles, secrets, PVCs, and resource quotas. Spot misconfigurations, orphaned resources, and security gaps across your clusters. |
+| **Trends** | Track your readiness score and every sub-dimension over time. See whether your environment is improving or degrading week over week, and correlate score drops to specific changes. |
+| **Archive** | Every analysis is saved. Go back to any historical result, compare it to today, and show auditors or management exactly what the environment looked like at a specific point in time. |
 
 **Operate**
 
 | Page | What it does |
 |------|-------------|
-| **Workspace** | Natural-language vCenter API explorer and PowerCLI script builder + executor |
-| **MCP AI Agent** | Free-form AI chat with live access to your environment data and action history |
-| **Bulk Ops** | Multi-VM provisioning and AD user management, gated by maintenance windows |
-| **Guest** | Guest OS visibility across VMs |
-| **Kubectl** | Natural-language kubectl command generator — runs against your cluster and streams output |
+| **Workspace** | Describe what you want to do in plain English — MCO generates the vCenter API call or PowerCLI script, explains what it will do, and executes it on your behalf. Automate routine tasks without writing a single line of PowerShell from scratch. |
+| **MCP AI Agent** | A conversational AI that has live access to your environment data, action history, and VMware knowledge base. Ask it to investigate an issue, suggest a fix, or walk you through a procedure — it knows your specific environment, not just generic documentation. |
+| **Bulk Ops** | Provision multiple VMs, manage AD users, or apply configuration changes across groups of machines — all gated by configurable maintenance windows so nothing runs at the wrong time. |
+| **Guest** | Visibility into guest OS details across your VM fleet — operating system, version, tools status, and configuration — without needing to log into each machine individually. |
+| **Kubectl** | Describe what you want to do with your Kubernetes cluster in plain English. MCO generates the kubectl command, explains it, and streams the output back — making cluster operations accessible to the whole ops team, not just Kubernetes specialists. |
 
 **Discover**
 
 | Page | What it does |
 |------|-------------|
-| **Discovery** | nmap scan CIDRs; track new hosts and open ports between scans |
-| **Vuln Scan** | Nuclei vulnerability scan — safe / standard / full profiles; suppress findings |
-| **Directory** | AD security overview: privileged accounts, Kerberoastable SPNs, stale computers |
-| **Audit Log** | Every action logged — filter by failed / after-hours / destructive / config-change |
+| **Discovery** | Scan any CIDR range with nmap and automatically track what appears or disappears between scans. Find unmanaged devices, shadow IT, and unexpected open ports before attackers do. |
+| **Vuln Scan** | Run Nuclei vulnerability scans against your environment in safe, standard, or full profiles. Review findings, suppress known-good results, and track remediation over time — without standing up a separate scanning tool. |
+| **Directory** | Get an instant AD security posture — privileged group membership, accounts with Kerberoastable SPNs, stale computer accounts, and password policy gaps. Surface the most common Active Directory attack paths before a red team does. |
+| **Audit Log** | Every action taken through MCO is logged with user, timestamp, and result. Filter by failed operations, after-hours activity, destructive actions, or configuration changes. Ready for compliance reviews without any additional tooling. |
 
 **Platform**
 
 | Page | What it does |
 |------|-------------|
-| **Alerts** | Rules engine → Slack / Teams / PagerDuty / webhook |
-| **Compliance** | One-click export: audit log + vuln findings + AD overview + fleet score |
-| **Settings** | Credentials, LLM provider, scoring thresholds, maintenance windows |
+| **Alerts** | Define rules on any metric or event and route notifications to Slack, Microsoft Teams, PagerDuty, or any webhook. Get notified when readiness drops below a threshold, a scan finds a critical vulnerability, or a host goes into an unexpected state. |
+| **Compliance** | Generate a single export that bundles your audit log, vulnerability findings, AD security overview, and fleet readiness score. Hand it to auditors, include it in a change advisory board submission, or attach it to an incident report. |
+| **Settings** | Configure VMware credentials, choose your AI provider and model, tune scoring thresholds to match your environment's risk tolerance, and set maintenance windows that gate destructive operations. |
 
 ---
 
