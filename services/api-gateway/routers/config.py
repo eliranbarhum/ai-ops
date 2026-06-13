@@ -1,6 +1,7 @@
 import httpx
 from fastapi import APIRouter, HTTPException, Request
 from shared import CONFIG_STORE_URL
+from dex_sync import sync_dex_config, _AD_FIELDS
 
 router = APIRouter()
 
@@ -24,7 +25,16 @@ async def save_config(request: Request):
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.post(f"{CONFIG_STORE_URL}/config", json=body)
         resp.raise_for_status()
-        return resp.json()
+        result = resp.json()
+
+    if any(k in body for k in _AD_FIELDS):
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            full = await client.get(f"{CONFIG_STORE_URL}/config")
+            cfg = full.json() if full.status_code == 200 else body
+        dex_result = await sync_dex_config(cfg)
+        result["dex_sync"] = dex_result
+
+    return result
 
 
 @router.post("/api/v1/config/test/{service}")

@@ -437,10 +437,20 @@ export function SettingsPage() {
           testing={testing['ad'] ?? false}
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Domain Controller (FQDN)" value={cfg.ad_host} onChange={set('ad_host')} placeholder="dc01.prglab.site" />
-            <Field label="Domain" value={cfg.ad_domain} onChange={set('ad_domain')} placeholder="prglab.site" />
-            <Field label="Username" value={cfg.ad_user} onChange={set('ad_user')} placeholder="PRGLAB\svc-mco or svc-mco@prglab.site" />
+            <Field label="Domain Controller (FQDN)" value={cfg.ad_host} onChange={set('ad_host')} placeholder="dc01.example.com" />
+            <Field label="Domain" value={cfg.ad_domain} onChange={set('ad_domain')} placeholder="example.com" />
+            <Field label="Username" value={cfg.ad_user} onChange={set('ad_user')} placeholder="svc-mco@example.com" />
             <Field label="Password" value={cfg.ad_password} onChange={set('ad_password')} sensitive />
+          </div>
+          <div className={`mt-3 flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg w-fit ${
+            cfg.ad_host && cfg.ad_user && cfg.ad_password && cfg.ad_domain
+              ? 'bg-green-900/30 text-green-400 border border-green-700/40'
+              : 'bg-slate-800/60 text-slate-400 border border-slate-700/40'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${cfg.ad_host && cfg.ad_user && cfg.ad_password && cfg.ad_domain ? 'bg-green-400' : 'bg-slate-500'}`} />
+            {cfg.ad_host && cfg.ad_user && cfg.ad_password && cfg.ad_domain
+              ? 'AD SSO active — users can log in with their AD credentials'
+              : 'AD SSO not configured — only the local admin account can log in'}
           </div>
         </IntegrationCard>
 
