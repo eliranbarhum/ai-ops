@@ -36,13 +36,13 @@ jobs:
           - service: config-store
             context: services/config-store
           - service: collector-vcenter
-            context: services/collector-vcenter
+            context: services/collectors/vcenter
           - service: collector-vrops
-            context: services/collector-vrops
+            context: services/collectors/vcf-operations
           - service: collector-sddc
-            context: services/collector-sddc
+            context: services/collectors/sddc
           - service: collector-logs
-            context: services/collector-logs
+            context: services/collectors/logs
           - service: tools
             context: services/tools
           - service: powercli
@@ -72,7 +72,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.ORG }}/mco/${{ matrix.service }}
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.service }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr

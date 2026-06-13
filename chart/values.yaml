@@ -7,7 +7,7 @@
 # To use images you built yourself, change registry to your own registry.
 # ---------------------------------------------------------------------------
 image:
-  registry: ghcr.io/eliranbarhum/ai-ops
+  registry: ghcr.io/eliranbarhum/mco
   tag: latest
   pullPolicy: IfNotPresent
   # Name of a pre-existing imagePullSecret. Leave empty for public images.
