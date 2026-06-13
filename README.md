@@ -43,22 +43,41 @@ Point DNS at the EXTERNAL-IP and open `https://your-domain.com`.
 
 ## What's in the box
 
+**Observe**
+
 | Page | What it does |
 |------|-------------|
-| **Analysis** | Type a question; get a scored readiness report in under a minute |
-| **Fleet** | Live overview: hosts, VMs, clusters, datastores, version, score trend |
-| **Platform Console** | Kubernetes visibility — pods, workloads, network policies, RBAC, secrets |
-| **Workspace** | Natural-language vCenter API + PowerCLI script builder and executor |
-| **Agent** | Free-form AI chat with access to your environment data and history |
+| **Fleet** | Live overview of hosts, VMs, clusters, datastores, version, and score trend |
+| **Analysis** | Ask a question; get a deterministic readiness score + AI explanation in under a minute |
+| **Platform Console** | Full Kubernetes visibility — pods, workloads, network policies, RBAC, secrets, PVCs |
+| **Trends** | Score history charts and per-dimension sparklines over time |
+| **Archive** | Browse and compare historical analysis results |
+
+**Operate**
+
+| Page | What it does |
+|------|-------------|
+| **Workspace** | Natural-language vCenter API explorer and PowerCLI script builder + executor |
+| **MCP AI Agent** | Free-form AI chat with live access to your environment data and action history |
+| **Bulk Ops** | Multi-VM provisioning and AD user management, gated by maintenance windows |
+| **Guest** | Guest OS visibility across VMs |
+| **Kubectl** | Natural-language kubectl command generator — runs against your cluster and streams output |
+
+**Discover**
+
+| Page | What it does |
+|------|-------------|
 | **Discovery** | nmap scan CIDRs; track new hosts and open ports between scans |
-| **VulnScan** | Nuclei vulnerability scan — safe / standard / full profiles; suppress findings |
-| **Directory** | AD security: privileged accounts, Kerberoastable SPNs, stale computers |
-| **Audit** | Every action logged — filter by failed / after-hours / destructive / config-change |
+| **Vuln Scan** | Nuclei vulnerability scan — safe / standard / full profiles; suppress findings |
+| **Directory** | AD security overview: privileged accounts, Kerberoastable SPNs, stale computers |
+| **Audit Log** | Every action logged — filter by failed / after-hours / destructive / config-change |
+
+**Platform**
+
+| Page | What it does |
+|------|-------------|
 | **Alerts** | Rules engine → Slack / Teams / PagerDuty / webhook |
 | **Compliance** | One-click export: audit log + vuln findings + AD overview + fleet score |
-| **Trends** | Score history charts and per-dimension sparklines |
-| **Bulk** | Multi-VM provisioning; AD user management (maintenance-window gated) |
-| **Kubectl** | NL kubectl generator, runs against your cluster, streams output |
 | **Settings** | Credentials, LLM provider, scoring thresholds, maintenance windows |
 
 ---
