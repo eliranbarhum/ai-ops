@@ -1,0 +1,1031 @@
+{{- $reg := .Values.image.registry }}
+{{- $tag := .Values.image.tag }}
+{{- $ns  := include "mco.namespace" . }}
+{{- $res := .Values.resources.default }}
+{{- $labels := include "mco.labels" . }}
+
+{{/* ------------------------------------------------------------------ */}}
+{{/*  Helper: standard secretRef block                                    */}}
+{{/* ------------------------------------------------------------------ */}}
+
+---
+# ── PostgreSQL ────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgresql
+  namespace: {{ $ns }}
+  labels:
+    app: postgresql
+    {{- $labels | nindent 4 }}
+spec:
+  serviceName: postgresql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgresql
+  template:
+    metadata:
+      labels:
+        app: postgresql
+        {{- $labels | nindent 8 }}
+    spec:
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: postgresql
+          image: timescale/timescaledb:latest-pg16
+          {{- include "mco.imagePullPolicy" . | nindent 10 }}
+          env:
+            - name: POSTGRES_USER
+              value: mco
+            - name: POSTGRES_DB
+              value: mco
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mco-secrets
+                  key: POSTGRES_PASSWORD
+          ports:
+            - containerPort: 5432
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: data-postgresql-0
+---
+# ── Redis ─────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: {{ $ns }}
+  labels:
+    app: redis
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+        {{- $labels | nindent 8 }}
+    spec:
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: redis
+          image: redis:7
+          {{- include "mco.imagePullPolicy" . | nindent 10 }}
+          ports:
+            - containerPort: 6379
+          command: ["redis-server","--appendonly","yes","--dir","/data"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: redis-data
+---
+# ── Dex (OIDC identity provider) ─────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dex
+  namespace: {{ $ns }}
+  labels:
+    app: dex
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dex
+  template:
+    metadata:
+      labels:
+        app: dex
+        {{- $labels | nindent 8 }}
+    spec:
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: dex
+          image: ghcr.io/dexidp/dex:v2.39.0
+          args: ["dex", "serve", "/etc/dex/config.yaml"]
+          ports:
+            - containerPort: 5556
+          readinessProbe:
+            tcpSocket:
+              port: 5556
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: config
+              mountPath: /etc/dex
+            - name: tls
+              mountPath: /etc/dex/tls
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      volumes:
+        - name: config
+          secret:
+            secretName: dex-config
+        - name: tls
+          secret:
+            secretName: dex-tls
+---
+# ── oauth2-proxy (TLS termination + OIDC session) ────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oauth2-proxy
+  namespace: {{ $ns }}
+  labels:
+    app: oauth2-proxy
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oauth2-proxy
+  template:
+    metadata:
+      labels:
+        app: oauth2-proxy
+        {{- $labels | nindent 8 }}
+    spec:
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.7.1
+          args:
+            - --provider=oidc
+            - --upstream=http://ui:3000
+            - --https-address=0.0.0.0:8443
+            - --tls-cert-file=/etc/mco-tls/tls.crt
+            - --tls-key-file=/etc/mco-tls/tls.key
+            - --email-domain=*
+            - --cookie-secure=true
+            - --skip-provider-button=true
+            - --pass-access-token=true
+            - --set-xauthrequest=true
+            - --pass-user-headers=true
+            - --upstream-timeout=700s
+            - --skip-auth-route=^/dex/
+            - --skip-auth-route=^/api/v1/health
+            - --insecure-oidc-allow-unverified-email=true
+            - --provider-ca-file=/etc/dex-ca/ca.crt
+          envFrom:
+            - secretRef:
+                name: oauth2proxy-secret
+          ports:
+            - name: https
+              containerPort: 8443
+            - name: http-redirect
+              containerPort: 4180
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: 8443
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: mco-tls
+              mountPath: /etc/mco-tls
+              readOnly: true
+            - name: dex-ca
+              mountPath: /etc/dex-ca
+              readOnly: true
+            - name: redirect-conf
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+        - name: http-redirect
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 4180
+          volumeMounts:
+            - name: redirect-conf
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+              readOnly: true
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+      volumes:
+        - name: mco-tls
+          secret:
+            secretName: mco-tls
+        - name: dex-ca
+          configMap:
+            name: dex-ca
+        - name: redirect-conf
+          configMap:
+            name: oauth2proxy-redirect
+---
+# ── config-store ──────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: config-store
+  namespace: {{ $ns }}
+  labels:
+    app: config-store
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: config-store
+  template:
+    metadata:
+      labels:
+        app: config-store
+        {{- $labels | nindent 8 }}
+    spec:
+      serviceAccountName: mco
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: config-store
+          image: {{ $reg }}/config-store:{{ $tag }}
+          {{- include "mco.imagePullPolicy" . | nindent 10 }}
+          envFrom:
+            - secretRef:
+                name: mco-secrets
+          ports:
+            - containerPort: 8009
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8009
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: config-data
+              mountPath: /data
+          resources:
+            {{- toYaml $res | nindent 12 }}
+      volumes:
+        - name: config-data
+          persistentVolumeClaim:
+            claimName: mco-config-data
+---
+# ── collector-vcenter ─────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collector-vcenter
+  namespace: {{ $ns }}
+  labels:
+    app: collector-vcenter
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: collector-vcenter
+  template:
+    metadata:
+      labels:
+        app: collector-vcenter
+        {{- $labels | nindent 8 }}
+    spec:
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: collector-vcenter
+          image: {{ $reg }}/collector-vcenter:{{ $tag }}
+          {{- include "mco.imagePullPolicy" . | nindent 10 }}
+          envFrom:
+            - secretRef:
+                name: mco-secrets
+          ports:
+            - containerPort: 8003
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8003
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml $res | nindent 12 }}
+---
+# ── collector-vrops ───────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collector-vrops
+  namespace: {{ $ns }}
+  labels:
+    app: collector-vrops
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: collector-vrops
+  template:
+    metadata:
+      labels:
+        app: collector-vrops
+        {{- $labels | nindent 8 }}
+    spec:
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: collector-vrops
+          image: {{ $reg }}/collector-vrops:{{ $tag }}
+          {{- include "mco.imagePullPolicy" . | nindent 10 }}
+          envFrom:
+            - secretRef:
+                name: mco-secrets
+          ports:
+            - containerPort: 8004
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8004
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml $res | nindent 12 }}
+---
+# ── collector-sddc ────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collector-sddc
+  namespace: {{ $ns }}
+  labels:
+    app: collector-sddc
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: collector-sddc
+  template:
+    metadata:
+      labels:
+        app: collector-sddc
+        {{- $labels | nindent 8 }}
+    spec:
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: collector-sddc
+          image: {{ $reg }}/collector-sddc:{{ $tag }}
+          {{- include "mco.imagePullPolicy" . | nindent 10 }}
+          envFrom:
+            - secretRef:
+                name: mco-secrets
+          ports:
+            - containerPort: 8011
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8011
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml $res | nindent 12 }}
+---
+# ── collector-logs ────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: collector-logs
+  namespace: {{ $ns }}
+  labels:
+    app: collector-logs
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: collector-logs
+  template:
+    metadata:
+      labels:
+        app: collector-logs
+        {{- $labels | nindent 8 }}
+    spec:
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: collector-logs
+          image: {{ $reg }}/collector-logs:{{ $tag }}
+          {{- include "mco.imagePullPolicy" . | nindent 10 }}
+          envFrom:
+            - secretRef:
+                name: mco-secrets
+          ports:
+            - containerPort: 8005
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8005
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml $res | nindent 12 }}
+---
+# ── normalization ─────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: normalization
+  namespace: {{ $ns }}
+  labels:
+    app: normalization
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas.normalization }}
+  selector:
+    matchLabels:
+      app: normalization
+  template:
+    metadata:
+      labels:
+        app: normalization
+        {{- $labels | nindent 8 }}
+    spec:
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: normalization
+          image: {{ $reg }}/normalization:{{ $tag }}
+          {{- include "mco.imagePullPolicy" . | nindent 10 }}
+          envFrom:
+            - secretRef:
+                name: mco-secrets
+          ports:
+            - containerPort: 8006
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8006
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml $res | nindent 12 }}
+---
+# ── scoring-engine ────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scoring-engine
+  namespace: {{ $ns }}
+  labels:
+    app: scoring-engine
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas.scoringEngine }}
+  selector:
+    matchLabels:
+      app: scoring-engine
+  template:
+    metadata:
+      labels:
+        app: scoring-engine
+        {{- $labels | nindent 8 }}
+    spec:
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: scoring-engine
+          image: {{ $reg }}/scoring-engine:{{ $tag }}
+          {{- include "mco.imagePullPolicy" . | nindent 10 }}
+          envFrom:
+            - secretRef:
+                name: mco-secrets
+          ports:
+            - containerPort: 8007
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8007
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml $res | nindent 12 }}
+---
+# ── llm-gateway ───────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-gateway
+  namespace: {{ $ns }}
+  labels:
+    app: llm-gateway
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llm-gateway
+  template:
+    metadata:
+      labels:
+        app: llm-gateway
+        {{- $labels | nindent 8 }}
+    spec:
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: llm-gateway
+          image: {{ $reg }}/llm-gateway:{{ $tag }}
+          {{- include "mco.imagePullPolicy" . | nindent 10 }}
+          envFrom:
+            - secretRef:
+                name: mco-secrets
+          ports:
+            - containerPort: 8008
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8008
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: {{ .Values.resources.llmGateway.requests.cpu }}
+              memory: {{ .Values.resources.llmGateway.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.llmGateway.limits.cpu }}
+              memory: {{ .Values.resources.llmGateway.limits.memory }}
+---
+# ── tools ─────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tools
+  namespace: {{ $ns }}
+  labels:
+    app: tools
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tools
+  template:
+    metadata:
+      labels:
+        app: tools
+        {{- $labels | nindent 8 }}
+    spec:
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: tools
+          image: {{ $reg }}/tools:{{ $tag }}
+          {{- include "mco.imagePullPolicy" . | nindent 10 }}
+          envFrom:
+            - secretRef:
+                name: mco-secrets
+          ports:
+            - containerPort: 8002
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8002
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml $res | nindent 12 }}
+---
+# ── orchestrator ──────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orchestrator
+  namespace: {{ $ns }}
+  labels:
+    app: orchestrator
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas.orchestrator }}
+  selector:
+    matchLabels:
+      app: orchestrator
+  template:
+    metadata:
+      labels:
+        app: orchestrator
+        {{- $labels | nindent 8 }}
+    spec:
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: orchestrator
+          image: {{ $reg }}/orchestrator:{{ $tag }}
+          {{- include "mco.imagePullPolicy" . | nindent 10 }}
+          envFrom:
+            - secretRef:
+                name: mco-secrets
+          ports:
+            - containerPort: 8001
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml $res | nindent 12 }}
+---
+# ── api-gateway ───────────────────────────────────────────────────────────
+# ClusterIP ONLY — direct external access allows auth bypass via
+# forged X-Forwarded-User headers. All external traffic goes through oauth2-proxy.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: {{ $ns }}
+  labels:
+    app: api-gateway
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas.apiGateway }}
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+        {{- $labels | nindent 8 }}
+    spec:
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: api-gateway
+          image: {{ $reg }}/api-gateway:{{ $tag }}
+          {{- include "mco.imagePullPolicy" . | nindent 10 }}
+          envFrom:
+            - secretRef:
+                name: mco-secrets
+          ports:
+            - containerPort: 8000
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: {{ .Values.resources.apiGateway.requests.cpu }}
+              memory: {{ .Values.resources.apiGateway.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.apiGateway.limits.cpu }}
+              memory: {{ .Values.resources.apiGateway.limits.memory }}
+---
+# ── powercli ──────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: powercli
+  namespace: {{ $ns }}
+  labels:
+    app: powercli
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: powercli
+  template:
+    metadata:
+      labels:
+        app: powercli
+        {{- $labels | nindent 8 }}
+    spec:
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: powercli
+          image: {{ $reg }}/powercli:{{ $tag }}
+          {{- include "mco.imagePullPolicy" . | nindent 10 }}
+          ports:
+            - containerPort: 8010
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8010
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+---
+# ── discovery-engine ──────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discovery-engine
+  namespace: {{ $ns }}
+  labels:
+    app: discovery-engine
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: discovery-engine
+  template:
+    metadata:
+      labels:
+        app: discovery-engine
+        {{- $labels | nindent 8 }}
+    spec:
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: discovery-engine
+          image: {{ $reg }}/discovery-engine:{{ $tag }}
+          {{- include "mco.imagePullPolicy" . | nindent 10 }}
+          envFrom:
+            - secretRef:
+                name: mco-secrets
+          ports:
+            - containerPort: 8010
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8010
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: discovery-data
+              mountPath: /data
+          resources:
+            {{- toYaml $res | nindent 12 }}
+      volumes:
+        - name: discovery-data
+          persistentVolumeClaim:
+            claimName: discovery-data
+---
+# ── vks-broker ────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vks-broker
+  namespace: {{ $ns }}
+  labels:
+    app: vks-broker
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vks-broker
+  template:
+    metadata:
+      labels:
+        app: vks-broker
+        {{- $labels | nindent 8 }}
+    spec:
+      serviceAccountName: mco
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: vks-broker
+          image: {{ $reg }}/vks-broker:{{ $tag }}
+          {{- include "mco.imagePullPolicy" . | nindent 10 }}
+          envFrom:
+            - secretRef:
+                name: mco-secrets
+          ports:
+            - containerPort: 8012
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8012
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml $res | nindent 12 }}
+---
+# ── UI ────────────────────────────────────────────────────────────────────
+# ClusterIP ONLY — same auth bypass reason as api-gateway above.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ui
+  namespace: {{ $ns }}
+  labels:
+    app: ui
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas.ui }}
+  selector:
+    matchLabels:
+      app: ui
+  template:
+    metadata:
+      labels:
+        app: ui
+        {{- $labels | nindent 8 }}
+    spec:
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: ui
+          image: {{ $reg }}/ui:{{ $tag }}
+          {{- include "mco.imagePullPolicy" . | nindent 10 }}
+          ports:
+            - containerPort: 3000
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+{{- if .Values.grafana.enabled }}
+---
+# ── Grafana ───────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: grafana
+  namespace: {{ $ns }}
+  labels:
+    app: grafana
+    {{- $labels | nindent 4 }}
+spec:
+  serviceName: grafana
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+        {{- $labels | nindent 8 }}
+    spec:
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: grafana
+          image: grafana/grafana:latest
+          {{- include "mco.imagePullPolicy" . | nindent 10 }}
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-admin
+                  key: admin-password
+                  optional: true
+          ports:
+            - containerPort: 3000
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/grafana
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: grafana-data
+{{- end }}
+{{- if .Values.prometheus.enabled }}
+---
+# ── Prometheus ────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: {{ $ns }}
+  labels:
+    app: prometheus
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+        {{- $labels | nindent 8 }}
+    spec:
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: prometheus
+          image: prom/prometheus:latest
+          {{- include "mco.imagePullPolicy" . | nindent 10 }}
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: data
+              mountPath: /prometheus
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: prometheus-data
+{{- end }}
+{{- if .Values.ollama.enabled }}
+---
+# ── Ollama (on-prem LLM) ──────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: {{ $ns }}
+  labels:
+    app: ollama
+    {{- $labels | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+        {{- $labels | nindent 8 }}
+    spec:
+      {{- include "mco.imagePullSecrets" . | nindent 6 }}
+      initContainers:
+        - name: pull-model
+          image: ollama/ollama:latest
+          command: ["/bin/sh", "-c", "ollama serve & sleep 5 && ollama pull {{ .Values.ollama.model }} && kill %1"]
+          env:
+            - name: OLLAMA_MODELS
+              value: /models
+          volumeMounts:
+            - name: model-cache
+              mountPath: /models
+      containers:
+        - name: ollama
+          image: ollama/ollama:latest
+          {{- include "mco.imagePullPolicy" . | nindent 10 }}
+          env:
+            - name: OLLAMA_MODELS
+              value: /models
+          ports:
+            - containerPort: 11434
+          volumeMounts:
+            - name: model-cache
+              mountPath: /models
+          resources:
+            requests:
+              cpu: 500m
+              memory: 4Gi
+            limits:
+              cpu: 4000m
+              memory: 12Gi
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: ollama-model-cache
+{{- end }}

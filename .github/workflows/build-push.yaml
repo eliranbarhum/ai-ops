@@ -1,0 +1,95 @@
+name: Build & Push Images
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  ORG: ${{ github.repository_owner }}
+
+jobs:
+  build:
+    name: Build ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: api-gateway
+            context: services/api-gateway
+          - service: orchestrator
+            context: services/orchestrator
+          - service: llm-gateway
+            context: services/llm-gateway
+          - service: scoring-engine
+            context: services/scoring-engine
+          - service: normalization
+            context: services/normalization
+          - service: config-store
+            context: services/config-store
+          - service: collector-vcenter
+            context: services/collector-vcenter
+          - service: collector-vrops
+            context: services/collector-vrops
+          - service: collector-sddc
+            context: services/collector-sddc
+          - service: collector-logs
+            context: services/collector-logs
+          - service: tools
+            context: services/tools
+          - service: powercli
+            context: services/powercli
+          - service: discovery-engine
+            context: services/discovery-engine
+          - service: vks-broker
+            context: services/vks-broker
+          - service: token-refresher
+            context: services/token-refresher
+          - service: ui
+            context: ui
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.ORG }}/mco/${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}

@@ -1,0 +1,114 @@
+{{- $ns  := include "mco.namespace" . }}
+{{- $reg := .Values.image.registry }}
+{{- $tag := .Values.image.tag }}
+{{- $labels := include "mco.labels" . }}
+
+{{- if .Values.backup.enabled }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mco-backup
+  namespace: {{ $ns }}
+  labels:
+    {{- $labels | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: mco-backup
+        spec:
+          restartPolicy: OnFailure
+          {{- include "mco.imagePullSecrets" . | nindent 10 }}
+          containers:
+            - name: backup
+              image: postgres:16
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  TS=$(date +%Y%m%d-%H%M%S)
+                  pg_dump "$POSTGRES_URL" | gzip > /backup/mco-$TS.sql.gz
+                  find /backup -name "mco-*.sql.gz" -mtime +{{ .Values.backup.retentionDays }} -delete
+                  echo "Backup done: mco-$TS.sql.gz"
+              envFrom:
+                - secretRef:
+                    name: mco-secrets
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+          volumes:
+            - name: backup
+              persistentVolumeClaim:
+                claimName: mco-backup
+{{- end }}
+{{- if .Values.scheduledAnalysis.enabled }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: scheduled-analysis
+  namespace: {{ $ns }}
+  labels:
+    {{- $labels | nindent 4 }}
+spec:
+  schedule: {{ .Values.scheduledAnalysis.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: scheduled-analysis
+        spec:
+          restartPolicy: OnFailure
+          {{- include "mco.imagePullSecrets" . | nindent 10 }}
+          containers:
+            - name: analysis
+              image: {{ $reg }}/orchestrator:{{ $tag }}
+              {{- include "mco.imagePullPolicy" . | nindent 14 }}
+              command: ["python3", "-c", "import asyncio, httpx; asyncio.run(httpx.AsyncClient().post('http://orchestrator:8001/pipeline/run', json={'query': 'Scheduled health check', 'scheduled': True}, timeout=600))"]
+              envFrom:
+                - secretRef:
+                    name: mco-secrets
+{{- end }}
+{{- if .Values.tokenRefresher.enabled }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: token-refresher
+  namespace: {{ $ns }}
+  labels:
+    {{- $labels | nindent 4 }}
+spec:
+  schedule: {{ .Values.tokenRefresher.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: token-refresher
+        spec:
+          restartPolicy: OnFailure
+          {{- include "mco.imagePullSecrets" . | nindent 10 }}
+          containers:
+            - name: refresher
+              image: {{ $reg }}/token-refresher:{{ $tag }}
+              {{- include "mco.imagePullPolicy" . | nindent 14 }}
+              envFrom:
+                - secretRef:
+                    name: mco-secrets
+{{- end }}

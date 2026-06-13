@@ -1,0 +1,356 @@
+{{- $ns := include "mco.namespace" . }}
+{{- $labels := include "mco.labels" . }}
+---
+# oauth2-proxy — the only externally-reachable service
+# Handles TLS termination, OIDC login, and proxies to the UI
+apiVersion: v1
+kind: Service
+metadata:
+  name: oauth2-proxy
+  namespace: {{ $ns }}
+  labels:
+    app: oauth2-proxy
+    {{- $labels | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    app: oauth2-proxy
+  ports:
+    - name: https
+      port: 443
+      targetPort: 8443
+    - name: http
+      port: 80
+      targetPort: 4180
+---
+# Dex — OIDC identity provider, accessible inside cluster only
+apiVersion: v1
+kind: Service
+metadata:
+  name: dex
+  namespace: {{ $ns }}
+  labels:
+    app: dex
+    {{- $labels | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app: dex
+  ports:
+    - port: 5556
+      targetPort: 5556
+---
+# UI — ClusterIP only (proxied by oauth2-proxy after auth)
+apiVersion: v1
+kind: Service
+metadata:
+  name: ui
+  namespace: {{ $ns }}
+  labels:
+    app: ui
+    {{- $labels | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app: ui
+  ports:
+    - port: 3000
+      targetPort: 3000
+---
+# api-gateway — ClusterIP only (auth bypass possible via LoadBalancer)
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+  namespace: {{ $ns }}
+  labels:
+    app: api-gateway
+    {{- $labels | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app: api-gateway
+  ports:
+    - port: 8000
+      targetPort: 8000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql
+  namespace: {{ $ns }}
+  labels:
+    app: postgresql
+    {{- $labels | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app: postgresql
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: {{ $ns }}
+  labels:
+    app: redis
+    {{- $labels | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app: redis
+  ports:
+    - port: 6379
+      targetPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: config-store
+  namespace: {{ $ns }}
+  labels:
+    app: config-store
+    {{- $labels | nindent 4 }}
+spec:
+  selector:
+    app: config-store
+  ports:
+    - port: 8009
+      targetPort: 8009
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator
+  namespace: {{ $ns }}
+  labels:
+    app: orchestrator
+    {{- $labels | nindent 4 }}
+spec:
+  selector:
+    app: orchestrator
+  ports:
+    - port: 8001
+      targetPort: 8001
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tools
+  namespace: {{ $ns }}
+  labels:
+    app: tools
+    {{- $labels | nindent 4 }}
+spec:
+  selector:
+    app: tools
+  ports:
+    - port: 8002
+      targetPort: 8002
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: collector-vcenter
+  namespace: {{ $ns }}
+  labels:
+    app: collector-vcenter
+    {{- $labels | nindent 4 }}
+spec:
+  selector:
+    app: collector-vcenter
+  ports:
+    - port: 8003
+      targetPort: 8003
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: collector-logs
+  namespace: {{ $ns }}
+  labels:
+    app: collector-logs
+    {{- $labels | nindent 4 }}
+spec:
+  selector:
+    app: collector-logs
+  ports:
+    - port: 8005
+      targetPort: 8005
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: normalization
+  namespace: {{ $ns }}
+  labels:
+    app: normalization
+    {{- $labels | nindent 4 }}
+spec:
+  selector:
+    app: normalization
+  ports:
+    - port: 8006
+      targetPort: 8006
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: scoring-engine
+  namespace: {{ $ns }}
+  labels:
+    app: scoring-engine
+    {{- $labels | nindent 4 }}
+spec:
+  selector:
+    app: scoring-engine
+  ports:
+    - port: 8007
+      targetPort: 8007
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-gateway
+  namespace: {{ $ns }}
+  labels:
+    app: llm-gateway
+    {{- $labels | nindent 4 }}
+spec:
+  selector:
+    app: llm-gateway
+  ports:
+    - port: 8008
+      targetPort: 8008
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: collector-vrops
+  namespace: {{ $ns }}
+  labels:
+    app: collector-vrops
+    {{- $labels | nindent 4 }}
+spec:
+  selector:
+    app: collector-vrops
+  ports:
+    - port: 8004
+      targetPort: 8004
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: collector-sddc
+  namespace: {{ $ns }}
+  labels:
+    app: collector-sddc
+    {{- $labels | nindent 4 }}
+spec:
+  selector:
+    app: collector-sddc
+  ports:
+    - port: 8011
+      targetPort: 8011
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: powercli
+  namespace: {{ $ns }}
+  labels:
+    app: powercli
+    {{- $labels | nindent 4 }}
+spec:
+  selector:
+    app: powercli
+  ports:
+    - port: 8010
+      targetPort: 8010
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: discovery-engine
+  namespace: {{ $ns }}
+  labels:
+    app: discovery-engine
+    {{- $labels | nindent 4 }}
+spec:
+  selector:
+    app: discovery-engine
+  ports:
+    - port: 8010
+      targetPort: 8010
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vks-broker
+  namespace: {{ $ns }}
+  labels:
+    app: vks-broker
+    {{- $labels | nindent 4 }}
+spec:
+  selector:
+    app: vks-broker
+  ports:
+    - port: 8012
+      targetPort: 8012
+{{- if .Values.grafana.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: {{ $ns }}
+  labels:
+    app: grafana
+    {{- $labels | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app: grafana
+  ports:
+    - port: 3000
+      targetPort: 3000
+{{- end }}
+{{- if .Values.prometheus.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: {{ $ns }}
+  labels:
+    app: prometheus
+    {{- $labels | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app: prometheus
+  ports:
+    - port: 9090
+      targetPort: 9090
+{{- end }}
+{{- if .Values.ollama.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ollama
+  namespace: {{ $ns }}
+  labels:
+    app: ollama
+    {{- $labels | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app: ollama
+  ports:
+    - port: 11434
+      targetPort: 11434
+{{- end }}

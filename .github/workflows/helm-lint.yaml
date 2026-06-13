@@ -1,0 +1,48 @@
+name: Helm Lint
+
+on:
+  pull_request:
+    paths:
+      - "chart/**"
+  push:
+    paths:
+      - "chart/**"
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: "3.14.0"
+
+      - name: Lint chart (defaults)
+        run: helm lint chart/
+
+      - name: Lint chart (ingress enabled)
+        run: |
+          helm lint chart/ \
+            --set portal.url=https://mco.example.com \
+            --set auth.adminPassword=TestPassword123 \
+            --set ingress.enabled=true \
+            --set ingress.certManager=true
+
+      - name: Lint chart (ollama enabled)
+        run: |
+          helm lint chart/ \
+            --set portal.url=https://mco.example.com \
+            --set auth.adminPassword=TestPassword123 \
+            --set llm.provider=ollama \
+            --set ollama.enabled=true
+
+      - name: Template render check
+        run: |
+          helm template mco chart/ \
+            --set portal.url=https://mco.example.com \
+            --set auth.adminPassword=TestPassword123 \
+            > /dev/null && echo "Template render OK"

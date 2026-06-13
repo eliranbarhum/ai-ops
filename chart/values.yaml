@@ -1,0 +1,212 @@
+# MCO Helm Chart — values.yaml
+# All values can be overridden with --set or a custom values file.
+
+# ---------------------------------------------------------------------------
+# Image registry
+# Default: GitHub Container Registry (public images built by the project CI).
+# To use images you built yourself, change registry to your own registry.
+# ---------------------------------------------------------------------------
+image:
+  registry: ghcr.io/eliranbarhum/ai-ops
+  tag: latest
+  pullPolicy: IfNotPresent
+  # Name of a pre-existing imagePullSecret. Leave empty for public images.
+  pullSecret: ""
+
+# ---------------------------------------------------------------------------
+# Kubernetes namespace (created by the chart)
+# ---------------------------------------------------------------------------
+namespace: mco
+
+# ---------------------------------------------------------------------------
+# Storage
+# Set to your cluster's default storage class.
+# Examples: standard (GKE/minikube), gp2 (EKS), managed (AKS), vcf-sp (VKS)
+# ---------------------------------------------------------------------------
+storage:
+  className: standard
+
+# ---------------------------------------------------------------------------
+# How the MCO portal is exposed
+#
+# Option A — LoadBalancer (default): cloud/on-prem with a load-balancer controller.
+#   Set portal.url to the URL your LB will serve (after it gets an IP).
+#
+# Option B — Ingress: set ingress.enabled=true and portal.url to match host.
+#
+# Option C — NodePort: set service.type=NodePort; port on all nodes.
+# ---------------------------------------------------------------------------
+service:
+  type: LoadBalancer
+
+ingress:
+  enabled: false
+  className: nginx
+  host: mco.example.com
+  tls: true
+  # Set to true to add cert-manager.io/cluster-issuer annotation
+  certManager: false
+  certManagerIssuer: letsencrypt-prod
+
+# Public-facing URL users land on after login.
+# Must match what your LoadBalancer / Ingress exposes.
+portal:
+  url: https://mco.example.com
+
+# ---------------------------------------------------------------------------
+# First admin user (Dex local login)
+# Change these before installing. The password is hashed at install time.
+# Additional users / AD integration can be configured in Settings after login.
+# ---------------------------------------------------------------------------
+auth:
+  adminEmail: admin@example.com
+  # REQUIRED — set this to a strong password before running helm install
+  adminPassword: ""
+
+# ---------------------------------------------------------------------------
+# AI provider
+# The platform works fully on-prem with Ollama — no cloud keys needed.
+# Choose one provider and supply the key (or Ollama URL).
+# The provider can also be changed post-install in Settings → AI Provider.
+# ---------------------------------------------------------------------------
+llm:
+  # provider: anthropic | openai | gemini | ollama
+  provider: anthropic
+  anthropicKey: ""
+  openaiKey: ""
+  geminiKey: ""
+  # Ollama URL — used when provider=ollama. Defaults to the bundled Ollama pod.
+  ollamaUrl: "http://ollama:11434"
+
+# ---------------------------------------------------------------------------
+# VMware integrations
+# All fields are optional here — they can also be set post-install in
+# Settings → Integrations. Filling them in here lets the first analysis run
+# immediately after install without any manual configuration.
+# ---------------------------------------------------------------------------
+vmware:
+  vcenterHost: ""
+  vcenterUser: ""
+  vcenterPassword: ""
+  sddcHost: ""
+  sddcUser: ""
+  sddcPassword: ""
+  nsxHost: ""
+  nsxUser: ""
+  nsxPassword: ""
+  vropsHost: ""
+  vropsUser: ""
+  vropsPassword: ""
+  logInsightHost: ""
+  logInsightUser: ""
+  logInsightPassword: ""
+
+# ---------------------------------------------------------------------------
+# Active Directory (optional — for directory and AD user authentication)
+# ---------------------------------------------------------------------------
+activeDirectory:
+  host: ""
+  domain: ""
+  bindUser: ""
+  bindPassword: ""
+
+# ---------------------------------------------------------------------------
+# PostgreSQL (TimescaleDB)
+# ---------------------------------------------------------------------------
+postgresql:
+  storageSize: 10Gi
+  # Leave empty to auto-generate a random password at install time
+  password: ""
+
+# ---------------------------------------------------------------------------
+# Redis
+# ---------------------------------------------------------------------------
+redis:
+  storageSize: 2Gi
+
+# ---------------------------------------------------------------------------
+# Grafana
+# ---------------------------------------------------------------------------
+grafana:
+  enabled: true
+  storageSize: 2Gi
+  # Leave empty to auto-generate
+  adminPassword: ""
+
+# ---------------------------------------------------------------------------
+# Prometheus
+# ---------------------------------------------------------------------------
+prometheus:
+  enabled: true
+  storageSize: 10Gi
+
+# ---------------------------------------------------------------------------
+# Ollama (on-prem LLM server)
+# Enable this if you want to run AI models locally (no cloud keys required).
+# Requires a node with sufficient CPU/RAM (8+ GB RAM for llama3.2).
+# ---------------------------------------------------------------------------
+ollama:
+  enabled: false
+  storageSize: 50Gi
+  model: "llama3.2"
+
+# ---------------------------------------------------------------------------
+# Scheduled jobs
+# ---------------------------------------------------------------------------
+backup:
+  enabled: true
+  schedule: "0 2 * * *"
+  retentionDays: 14
+  storageSize: 20Gi
+
+scheduledAnalysis:
+  enabled: true
+  schedule: "0 */4 * * *"
+
+tokenRefresher:
+  enabled: true
+  schedule: "0 */4 * * *"
+
+# ---------------------------------------------------------------------------
+# Replica counts (scale down to 1 for resource-constrained clusters)
+# ---------------------------------------------------------------------------
+replicas:
+  apiGateway: 2
+  orchestrator: 2
+  scoringEngine: 2
+  normalization: 2
+  ui: 2
+
+# ---------------------------------------------------------------------------
+# Resource limits (override per service if needed)
+# Defaults are tuned for a 3-node cluster with 8 vCPUs / 32 GB RAM per node.
+# ---------------------------------------------------------------------------
+resources:
+  default:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  llmGateway:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  apiGateway:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+# ---------------------------------------------------------------------------
+# Linkerd service mesh (mTLS between pods)
+# Set to true if Linkerd is installed in your cluster.
+# ---------------------------------------------------------------------------
+linkerd:
+  enabled: false

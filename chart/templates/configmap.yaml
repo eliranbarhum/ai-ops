@@ -1,0 +1,19 @@
+---
+# oauth2-proxy http-redirect sidecar nginx config
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oauth2proxy-redirect
+  namespace: {{ include "mco.namespace" . }}
+  labels:
+    {{- include "mco.labels" . | nindent 4 }}
+data:
+  nginx.conf: |
+    worker_processes 1;
+    events { worker_connections 64; }
+    http {
+      server {
+        listen 4180;
+        return 301 https://$host$request_uri;
+      }
+    }

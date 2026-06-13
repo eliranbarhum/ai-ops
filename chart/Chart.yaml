@@ -1,0 +1,24 @@
+apiVersion: v2
+name: mco
+description: >
+  MCO — AI-powered operations dashboard for VMware Cloud Foundation.
+  Connects to vCenter, SDDC Manager, and NSX; scores your environment;
+  and provides plain-English analysis, vulnerability scanning, AD directory
+  review, and Kubernetes cluster visibility — all in a single portal.
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+home: https://github.com/eliranbarhum/ai-ops
+sources:
+  - https://github.com/eliranbarhum/ai-ops
+keywords:
+  - vmware
+  - vcf
+  - cloud-foundation
+  - kubernetes
+  - operations
+  - ai
+  - monitoring
+maintainers:
+  - name: Eliran Barhum
+    email: eliranbarhum@gmail.com

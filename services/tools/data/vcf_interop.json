@@ -1,0 +1,318 @@
+{
+  "_comment": "VCF interoperability and HCL data. Sources: Broadcom release notes, vSphere interop matrix, VMware Compatibility Guide.",
+  "_last_updated": "2026-05",
+
+  "interop_matrix": {
+    "9.1": {
+      "vcenter_requires_major": "9",
+      "esxi_requires_major": "9",
+      "nsx_requires_major": "9",
+      "sddc_manager_requires_major": "9",
+      "min_versions": {
+        "vcenter": "9.1.0.0",
+        "esxi": "9.1.0.0",
+        "nsx": "9.1.0.0",
+        "sddc_manager": "9.1.0.0"
+      },
+      "bom_builds": {
+        "sddc_manager": "25371088",
+        "esxi": "25370933",
+        "vcenter": "25370922",
+        "nsx": "25318225",
+        "vcf_operations": "25346025",
+        "vcf_automation": "25370929",
+        "fleet_lifecycle": "25371109",
+        "vmware_tools": "13.1.0.0-25294452",
+        "avi_load_balancer": "32.1.1-25377988"
+      },
+      "description": "VCF 9.1 requires all core components on the 9.1.x release stream. Mixed major versions are not supported.",
+      "reference": "https://docs.vmware.com/en/VMware-Cloud-Foundation/9.1/rn/vmware-cloud-foundation-91-release-notes/index.html"
+    },
+    "9.0": {
+      "vcenter_requires_major": "9",
+      "esxi_requires_major": "9",
+      "nsx_requires_major": "9",
+      "sddc_manager_requires_major": "9",
+      "min_versions": {
+        "vcenter": "9.0.0",
+        "esxi": "9.0.0",
+        "nsx": "9.0.0",
+        "sddc_manager": "9.0.0"
+      },
+      "description": "VCF 9.0 requires all components on the 9.0.x release stream. Mixed major versions are not supported.",
+      "reference": "https://docs.vmware.com/en/VMware-Cloud-Foundation/9.0/rn/vmware-cloud-foundation-90-release-notes/index.html"
+    },
+    "5.2": {
+      "vcenter_requires_major": "8",
+      "esxi_requires_major": "8",
+      "nsx_requires_major": "4",
+      "sddc_manager_requires_major": "5",
+      "min_versions": {
+        "vcenter": "8.0.2",
+        "esxi": "8.0.2",
+        "nsx": "4.1.0",
+        "sddc_manager": "5.2.0"
+      },
+      "description": "VCF 5.2 requires vCenter/ESXi 8.0.2+, NSX 4.1+, SDDC Manager 5.2.x.",
+      "reference": "https://docs.vmware.com/en/VMware-Cloud-Foundation/5.2/rn/vmware-cloud-foundation-52-release-notes/index.html"
+    },
+    "5.1": {
+      "vcenter_requires_major": "8",
+      "esxi_requires_major": "8",
+      "nsx_requires_major": "4",
+      "sddc_manager_requires_major": "5",
+      "min_versions": {
+        "vcenter": "8.0.1",
+        "esxi": "8.0.1",
+        "nsx": "4.0.0",
+        "sddc_manager": "5.1.0"
+      },
+      "description": "VCF 5.1 requires vCenter/ESXi 8.0.1+, NSX 4.0+, SDDC Manager 5.1.x."
+    },
+    "5.0": {
+      "vcenter_requires_major": "8",
+      "esxi_requires_major": "8",
+      "nsx_requires_major": "3",
+      "sddc_manager_requires_major": "5",
+      "min_versions": {
+        "vcenter": "8.0.0",
+        "esxi": "8.0.0",
+        "nsx": "3.2.0",
+        "sddc_manager": "5.0.0"
+      }
+    }
+  },
+
+  "upgrade_paths": {
+    "9.1": {
+      "supported_direct_sources": ["9.0", "5.2"],
+      "required_intermediate": {
+        "5.1": "5.2",
+        "5.0": "5.2",
+        "4.5": "5.2",
+        "4.4": "5.2",
+        "4.3": "5.2"
+      },
+      "upgrade_order": [
+        "VCF Operations (via PAK file — must be first)",
+        "vCenter Server + NSX Manager (combined step)",
+        "ESX hosts",
+        "NSX Edge nodes",
+        "NSX finalize",
+        "VDS version upgrade",
+        "vSAN On-Disk Format upgrade",
+        "vSAN File Service upgrade",
+        "VCF Configuration Upgrades"
+      ],
+      "prerequisites": [
+        "Temporary IP address required per vCenter appliance",
+        "vCenter must not be joined to an AD domain",
+        "No expired passwords or certificates",
+        "TPM 2.0 firmware verified or disabled in BIOS",
+        "ESX hardware on HCL with latest BIOS/firmware",
+        "vSAN HCL database manually updated",
+        "Backups of SDDC Manager + all vCenter/NSX Manager appliances",
+        "No active alarms on hosts/clusters",
+        "No failed workflows in SDDC Manager"
+      ],
+      "workflow_rules": [
+        {
+          "condition": "has_sddc_manager",
+          "workflow": "VCF Installer workflows (SDDC Manager LCM)",
+          "blocker": false,
+          "note": "All upgrades with SDDC Manager must use the VCF Installer lifecycle workflows. Reference: KB440630."
+        },
+        {
+          "condition": "has_nsx_4x",
+          "workflow": "VCF Installer workflows ONLY — independent component upgrades are NOT supported",
+          "blocker": true,
+          "note": "When NSX 4.x is present, only VCF Installer workflows with convert/import operations are supported. Attempting independent component upgrades will fail. Reference: KB440630."
+        },
+        {
+          "condition": "has_aria_automation",
+          "workflow": "VCF Installer workflows ONLY",
+          "blocker": true,
+          "note": "Aria Automation 8.x (with or without NSX 4.x) requires VCF Installer workflows only. Independent upgrade is not supported. Reference: KB440630."
+        },
+        {
+          "condition": "has_vrslcm",
+          "workflow": "VCF Installer workflows — VMware Identity Manager requires manual post-upgrade migration",
+          "blocker": false,
+          "note": "vRealize Suite Lifecycle Manager 8.x: use VCF Installer workflows. Post-upgrade action required: manually migrate VMware Identity Manager to the new Identity Broker service in VCF Management Services. Reference: KB440630."
+        },
+        {
+          "condition": "has_aria_log_insight",
+          "workflow": "Enable Log Management Service; migrate logs to VCF Log Management 9.1",
+          "blocker": false,
+          "note": "Aria Log Insight 8.x: enable the Log Management Service in VCF 9.1 and migrate existing log data. Reference: KB440630."
+        },
+        {
+          "condition": "has_aria_network_insight",
+          "workflow": "Aria Network Insight must be upgraded via VCF Operations Fleet LCM workflows ONLY",
+          "blocker": false,
+          "note": "Aria Network Insight 8.x upgrade is only supported through VCF Operations Fleet LCM workflows, not independently. Reference: KB440630."
+        },
+        {
+          "condition": "vcenter_esxi_only",
+          "workflow": "Use VCF Installer workflows for VCF/VVF, OR download VCF Operations with separate license server",
+          "blocker": false,
+          "note": "Environments with only vCenter/ESX 8.x or 9.0.x (no SDDC Manager) can use VCF Installer workflows or independently download VCF Operations with a separate license server install. Reference: KB440630."
+        }
+      ],
+      "component_consolidations": {
+        "fleet_management_appliance": {
+          "action": "decommission_required",
+          "blocker": true,
+          "note": "Fleet Management Appliance (VCF 9.0) CANNOT be used for 9.1 upgrades and must be decommissioned after upgrading the environment. It is replaced by Fleet Lifecycle and SDDC Lifecycle services within VCF Management Services."
+        },
+        "vmware_identity_broker": {
+          "action": "consolidate_into_vcf_management_services",
+          "blocker": false,
+          "management_network_downtime": false,
+          "non_management_network_downtime": true,
+          "note": "VMware Identity Broker (9.0.x external cluster) is consolidated into VCF Management Services in 9.1. Deployments on the management network: no downtime. Deployments on a non-management network: requires Broadcom Support guidance and involves downtime."
+        },
+        "vcf_license_server": {
+          "action": "new_required_component",
+          "blocker": false,
+          "note": "A centralized VCF License Server is a new required component in VCF 9.1. Must be deployed as part of the upgrade process."
+        }
+      },
+      "vcf_management_services_requirements": {
+        "min_ips": 12,
+        "max_ips": 30,
+        "internal_ip_ranges": ["198.18.0.0/15", "240.0.0.0/15", "250.0.0.0/15"],
+        "default_internal_ip_range": "198.18.0.0/15",
+        "note": "VCF Management Services requires a minimum of 12 IP addresses on the management network initially. Maximum 30 total. Internal IP range defaults to 198.18.0.0/15 but can be changed to 240.0.0.0/15 or 250.0.0.0/15 if conflicting with existing infrastructure."
+      },
+      "notes": "Direct upgrade to VCF 9.1 supported from VCF 9.0 or VCF 5.2. Versions earlier than 5.2 must stage through 5.2 first. VCF Operations (Aria Operations) must be upgraded before all other components. Workflow type is determined by which components are present — see workflow_rules. Source: KB440630 (Broadcom).",
+      "reference": "https://docs.vmware.com/en/VMware-Cloud-Foundation/9.1/vcf-upgrade/GUID-upgrade-vcf.html",
+      "kb_reference": "https://knowledge.broadcom.com/external/article/440630"
+    },
+    "9.0": {
+      "supported_direct_sources": ["9.0", "5.2"],
+      "required_intermediate": {
+        "5.1": "5.2.1",
+        "5.0": "5.2.1",
+        "4.5": "5.1 then 5.2.1",
+        "4.4": "4.5 then 5.1 then 5.2.1",
+        "4.3": "4.5 then 5.1 then 5.2.1"
+      },
+      "notes": "Direct upgrade to VCF 9.0 requires source VCF 5.2.x. Earlier versions require staged intermediate upgrades.",
+      "reference": "https://docs.vmware.com/en/VMware-Cloud-Foundation/9.0/vcf-upgrade/GUID-upgrade-vcf.html"
+    },
+    "5.2": {
+      "supported_direct_sources": ["5.2", "5.1", "5.0"],
+      "required_intermediate": {
+        "4.5": "5.0 or 5.1",
+        "4.4": "4.5 then 5.0"
+      },
+      "notes": "Direct upgrade to VCF 5.2 from 5.0 or 5.1 is supported."
+    },
+    "5.1": {
+      "supported_direct_sources": ["5.1", "5.0", "4.5"],
+      "required_intermediate": {
+        "4.4": "4.5"
+      }
+    }
+  },
+
+  "hardware_hcl": {
+    "_comment": "true=certified, false=not certified, 'warning'=verify on Broadcom HCL. Source: VMware Compatibility Guide / Broadcom Compatibility Matrix.",
+    "9.1": {
+      "intel_xeon_6":       true,
+      "intel_xeon_5th_gen": true,
+      "intel_xeon_4th_gen": true,
+      "intel_xeon_3rd_gen": true,
+      "intel_xeon_2nd_gen": true,
+      "intel_xeon_1st_gen": false,
+      "amd_epyc_genoa":     true,
+      "amd_epyc_milan":     true,
+      "amd_epyc_rome":      true,
+      "amd_epyc_naples":    false,
+      "unknown":            "warning"
+    },
+    "9.0": {
+      "intel_xeon_6":       true,
+      "intel_xeon_5th_gen": true,
+      "intel_xeon_4th_gen": true,
+      "intel_xeon_3rd_gen": true,
+      "intel_xeon_2nd_gen": true,
+      "intel_xeon_1st_gen": false,
+      "amd_epyc_genoa":     true,
+      "amd_epyc_milan":     true,
+      "amd_epyc_rome":      true,
+      "amd_epyc_naples":    false,
+      "unknown":            "warning"
+    },
+    "8.0": {
+      "intel_xeon_6":       true,
+      "intel_xeon_5th_gen": true,
+      "intel_xeon_4th_gen": true,
+      "intel_xeon_3rd_gen": true,
+      "intel_xeon_2nd_gen": true,
+      "intel_xeon_1st_gen": "warning",
+      "amd_epyc_genoa":     true,
+      "amd_epyc_milan":     true,
+      "amd_epyc_rome":      true,
+      "amd_epyc_naples":    "warning",
+      "unknown":            "warning"
+    }
+  },
+
+  "platform_names": {
+    "intel_xeon_6":       "Intel Xeon 6 (Granite Rapids / Sierra Forest)",
+    "intel_xeon_5th_gen": "Intel Xeon Scalable 5th Gen (Emerald Rapids)",
+    "intel_xeon_4th_gen": "Intel Xeon Scalable 4th Gen (Sapphire Rapids)",
+    "intel_xeon_3rd_gen": "Intel Xeon Scalable 3rd Gen (Ice Lake)",
+    "intel_xeon_2nd_gen": "Intel Xeon Scalable 2nd Gen (Cascade Lake)",
+    "intel_xeon_1st_gen": "Intel Xeon Scalable 1st Gen (Skylake)",
+    "amd_epyc_genoa":     "AMD EPYC 4th Gen (Genoa / Bergamo)",
+    "amd_epyc_milan":     "AMD EPYC 3rd Gen (Milan)",
+    "amd_epyc_rome":      "AMD EPYC 2nd Gen (Rome)",
+    "amd_epyc_naples":    "AMD EPYC 1st Gen (Naples)",
+    "unknown":            "Unknown Platform"
+  },
+
+  "deprecated_in_9_1": {
+    "boot_devices": [
+      "USB boot devices (removal planned in next major release)",
+      "SD card boot devices (removal planned in next major release)",
+      "ESX hosts without a persistent storage device for OSDATA partition",
+      "ESX hosts with storage device < 32 GB"
+    ],
+    "network_adapters": [
+      "Marvell/Aquantia (Atlantic) 10GbE USB/PCIe NICs — no driver support",
+      "AMD Solarflare 8000 series Ethernet adapters",
+      "AMD Solarflare X2 series Ethernet adapters",
+      "Cisco VIC 1200 series — no Enhanced Data Path support",
+      "Cisco VIC 1300 series — no Enhanced Data Path support",
+      "Marvell E3/E4 FastLinQ 57800 series",
+      "Marvell E3/E4 FastLinQ 58xx series",
+      "Marvell E3/E4 FastLinQ 41000 series",
+      "Marvell E3/E4 FastLinQ 45000 series"
+    ],
+    "crypto": [
+      "SHA1-based cryptographic algorithms"
+    ],
+    "features": [
+      "vSphere Cluster Services (vCLS) UI fully removed in 9.1"
+    ]
+  },
+
+  "new_in_9_1": {
+    "hardware_support": [
+      "Intel NIC E825 for Xeon Gen 6 (Granite Rapids-D)",
+      "Intel TDX GA support for Xeon Gen 5 (Emerald Rapids) and later",
+      "AMD EPYC IOMMU virtualization with DirectPath I/O for Zen 3 (Milan) and later"
+    ],
+    "upgrade_notes": [
+      "vCenter and NSX Manager are upgraded in a single combined step in 9.1",
+      "VCF Operations must be upgraded via PAK file before all other components",
+      "vSphere 8 + Aria Operations 8 have a separate migration path to VCF 9.1"
+    ]
+  },
+
+  "hcl_reference_url":    "https://compatibilitymatrix.broadcom.com/ui/compatibility-guide/systems",
+  "interop_reference_url": "https://interopmatrix.vmware.com/Interoperability"
+}

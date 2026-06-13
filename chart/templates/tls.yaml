@@ -1,0 +1,70 @@
+{{/*
+TLS certificates for MCO.
+
+mco-tls    — serves the portal HTTPS (oauth2-proxy → browsers).
+             Users should replace this with a real cert for their domain.
+             By default a self-signed cert is generated.
+
+dex-tls    — internal TLS for the Dex OIDC server.
+             Always self-signed (Dex is cluster-internal; only the CA is
+             trusted by oauth2-proxy, not by browsers).
+*/}}
+
+{{- $portalHost := .Values.portal.url | trimPrefix "https://" | trimPrefix "http://" -}}
+
+{{/* Generate a self-signed CA for Dex */}}
+{{- $dexCA    := genCA "MCO Dex Internal CA" 3650 }}
+{{- $dexCert  := genSignedCert "dex" nil (list "dex" (printf "dex.%s.svc.cluster.local" (include "mco.namespace" .))) 3650 $dexCA }}
+
+{{/* Generate a self-signed cert for the portal (replace with real cert in production) */}}
+{{- $portalCA   := genCA "MCO Portal Self-signed CA" 3650 }}
+{{- $portalCert := genSignedCert $portalHost (list) (list $portalHost) 3650 $portalCA }}
+---
+# Dex TLS — internal, self-signed, CA trusted by oauth2-proxy
+apiVersion: v1
+kind: Secret
+metadata:
+  name: dex-tls
+  namespace: {{ include "mco.namespace" . }}
+  labels:
+    {{- include "mco.labels" . | nindent 4 }}
+type: kubernetes.io/tls
+data:
+  tls.crt: {{ $dexCert.Cert | b64enc }}
+  tls.key: {{ $dexCert.Key  | b64enc }}
+---
+# Dex CA — mounted into oauth2-proxy so it trusts Dex's self-signed cert
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dex-ca
+  namespace: {{ include "mco.namespace" . }}
+  labels:
+    {{- include "mco.labels" . | nindent 4 }}
+data:
+  ca.crt: |
+{{ $dexCA.Cert | indent 4 }}
+---
+# Portal TLS — serves HTTPS to browsers.
+# IMPORTANT: replace this with a real cert (cert-manager, Let's Encrypt, or
+# your CA) before exposing to end users. The self-signed cert will trigger
+# browser security warnings.
+{{- if not .Values.ingress.certManager }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mco-tls
+  namespace: {{ include "mco.namespace" . }}
+  labels:
+    {{- include "mco.labels" . | nindent 4 }}
+  annotations:
+    mco/tls-note: >
+      Self-signed certificate generated at install time.
+      Replace with a real certificate for production use:
+        kubectl -n {{ include "mco.namespace" . }} create secret tls mco-tls
+          --cert=fullchain.pem --key=privkey.pem --dry-run=client -o yaml | kubectl apply -f -
+type: kubernetes.io/tls
+data:
+  tls.crt: {{ $portalCert.Cert | b64enc }}
+  tls.key: {{ $portalCert.Key  | b64enc }}
+{{- end }}

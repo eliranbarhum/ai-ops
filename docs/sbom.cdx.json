@@ -1,0 +1,457 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:vcf-ai-ops-mco-20260531",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-05-31T00:00:00Z",
+    "component": {
+      "type": "application",
+      "name": "mco",
+      "version": "1.0.0",
+      "description": "MCO — VMware Cloud Foundation AI Ops platform"
+    }
+  },
+  "components": [
+    {
+      "type": "container",
+      "group": "base-images",
+      "name": "python",
+      "version": "3.12-slim",
+      "purl": "pkg:oci/python@3.12-slim",
+      "description": "Base image for all Python microservices"
+    },
+    {
+      "type": "container",
+      "group": "base-images",
+      "name": "python",
+      "version": "3.12-slim-bookworm",
+      "purl": "pkg:oci/python@3.12-slim-bookworm",
+      "description": "Base image for PowerCLI service (Debian 12 required for PowerShell)"
+    },
+    {
+      "type": "container",
+      "group": "base-images",
+      "name": "node",
+      "version": "20-alpine",
+      "purl": "pkg:oci/node@20-alpine",
+      "description": "UI build stage"
+    },
+    {
+      "type": "container",
+      "group": "base-images",
+      "name": "nginx",
+      "version": "alpine",
+      "purl": "pkg:oci/nginx@alpine",
+      "description": "UI runtime / static file server"
+    },
+    {
+      "type": "container",
+      "group": "infrastructure",
+      "name": "timescaledb",
+      "version": "latest-pg16",
+      "purl": "pkg:oci/timescale%2Ftimescaledb@latest-pg16",
+      "description": "Time-series PostgreSQL — stores metrics and analysis history"
+    },
+    {
+      "type": "container",
+      "group": "infrastructure",
+      "name": "redis",
+      "version": "7-alpine",
+      "purl": "pkg:oci/redis@7-alpine",
+      "description": "In-memory cache and message broker"
+    },
+    {
+      "type": "container",
+      "group": "infrastructure",
+      "name": "dex",
+      "version": "v2.39.0",
+      "purl": "pkg:oci/ghcr.io%2Fdexidp%2Fdex@v2.39.0",
+      "description": "OIDC identity provider (SSO / LDAP federation)"
+    },
+    {
+      "type": "container",
+      "group": "infrastructure",
+      "name": "oauth2-proxy",
+      "version": "v7.7.1",
+      "purl": "pkg:oci/quay.io%2Foauth2-proxy%2Foauth2-proxy@v7.7.1",
+      "description": "Auth reverse proxy — enforces OIDC login before UI"
+    },
+    {
+      "type": "container",
+      "group": "infrastructure",
+      "name": "curl",
+      "version": "8.7.1",
+      "purl": "pkg:oci/curlimages%2Fcurl@8.7.1",
+      "description": "Init-container for service readiness probes"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "fastapi",
+      "version": "0.115.0",
+      "purl": "pkg:pypi/fastapi@0.115.0",
+      "description": "ASGI web framework — used by all Python microservices"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "uvicorn",
+      "version": "0.30.6",
+      "purl": "pkg:pypi/uvicorn@0.30.6",
+      "description": "ASGI server"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "pydantic",
+      "version": "2.9.2",
+      "purl": "pkg:pypi/pydantic@2.9.2",
+      "description": "Data validation / settings"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "httpx",
+      "version": "0.27.2",
+      "purl": "pkg:pypi/httpx@0.27.2",
+      "description": "Async HTTP client — inter-service communication"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "python-dotenv",
+      "version": "1.0.1",
+      "purl": "pkg:pypi/python-dotenv@1.0.1",
+      "description": "Environment variable loading"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "prometheus-fastapi-instrumentator",
+      "version": "7.0.0",
+      "purl": "pkg:pypi/prometheus-fastapi-instrumentator@7.0.0",
+      "description": "Prometheus metrics for FastAPI services"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "tenacity",
+      "version": "9.0.0",
+      "purl": "pkg:pypi/tenacity@9.0.0",
+      "description": "Retry logic for external API calls"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "redis",
+      "version": "5.0.8",
+      "purl": "pkg:pypi/redis@5.0.8",
+      "description": "Redis async client (api-gateway, discovery-engine)"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "asyncpg",
+      "version": "0.29.0",
+      "purl": "pkg:pypi/asyncpg@0.29.0",
+      "description": "Async PostgreSQL driver (api-gateway, scoring-engine)"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "ldap3",
+      "version": "2.9.1",
+      "purl": "pkg:pypi/ldap3@2.9.1",
+      "description": "LDAP client (api-gateway, config-store)"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "cryptography",
+      "version": "43.0.1",
+      "purl": "pkg:pypi/cryptography@43.0.1",
+      "description": "Encryption for stored credentials (config-store, discovery-engine)"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "psycopg2-binary",
+      "version": "2.9.9",
+      "purl": "pkg:pypi/psycopg2-binary@2.9.9",
+      "description": "Sync PostgreSQL driver (config-store)"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "aiosqlite",
+      "version": "latest",
+      "purl": "pkg:pypi/aiosqlite",
+      "description": "Async SQLite (discovery-engine)"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "asyncssh",
+      "version": "latest",
+      "purl": "pkg:pypi/asyncssh",
+      "description": "Async SSH client (discovery-engine)"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "anthropic",
+      "version": "0.40.0",
+      "purl": "pkg:pypi/anthropic@0.40.0",
+      "description": "Anthropic Claude API SDK (llm-gateway)"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "openai",
+      "version": ">=1.40.0",
+      "purl": "pkg:pypi/openai",
+      "description": "OpenAI API SDK (llm-gateway)"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "google-generativeai",
+      "version": ">=0.8.0",
+      "purl": "pkg:pypi/google-generativeai",
+      "description": "Google Gemini API SDK (llm-gateway)"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "rank-bm25",
+      "version": "0.2.2",
+      "purl": "pkg:pypi/rank-bm25@0.2.2",
+      "description": "BM25 keyword retrieval for RAG (llm-gateway)"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "json-repair",
+      "version": "0.30.3",
+      "purl": "pkg:pypi/json-repair@0.30.3",
+      "description": "LLM JSON output repair (llm-gateway)"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "pypdf",
+      "version": "6.12.1",
+      "purl": "pkg:pypi/pypdf@6.12.1",
+      "description": "PDF parsing for VCF release notes ingestion (llm-gateway)"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "cachetools",
+      "version": "5.5.0",
+      "purl": "pkg:pypi/cachetools@5.5.0",
+      "description": "TTL caching for HCL/compatibility data (tools)"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "urllib3",
+      "version": "2.2.3",
+      "purl": "pkg:pypi/urllib3@2.2.3",
+      "description": "HTTP client (collectors, token-refresher)"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "python-multipart",
+      "version": "0.0.9",
+      "purl": "pkg:pypi/python-multipart@0.0.9",
+      "description": "Multipart form upload support (api-gateway)"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "python-telegram-bot",
+      "version": "21.6",
+      "purl": "pkg:pypi/python-telegram-bot@21.6",
+      "description": "Telegram Bot API client (telegram-bot)"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "requests",
+      "version": "latest",
+      "purl": "pkg:pypi/requests",
+      "description": "HTTP client (token-refresher only)"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "pyyaml",
+      "version": "latest",
+      "purl": "pkg:pypi/pyyaml",
+      "description": "YAML parsing (token-refresher)"
+    },
+    {
+      "type": "library",
+      "group": "python",
+      "name": "kubernetes",
+      "version": "latest",
+      "purl": "pkg:pypi/kubernetes",
+      "description": "Kubernetes Python client (token-refresher only — for kubeconfig secret update)"
+    },
+    {
+      "type": "library",
+      "group": "javascript",
+      "name": "react",
+      "version": "18.3.1",
+      "purl": "pkg:npm/react@18.3.1",
+      "description": "UI framework"
+    },
+    {
+      "type": "library",
+      "group": "javascript",
+      "name": "react-dom",
+      "version": "18.3.1",
+      "purl": "pkg:npm/react-dom@18.3.1",
+      "description": "React DOM renderer"
+    },
+    {
+      "type": "library",
+      "group": "javascript",
+      "name": "recharts",
+      "version": "2.15.4",
+      "purl": "pkg:npm/recharts@2.15.4",
+      "description": "Chart library for metrics visualisation"
+    },
+    {
+      "type": "library",
+      "group": "javascript",
+      "name": "lucide-react",
+      "version": "0.417.0",
+      "purl": "pkg:npm/lucide-react@0.417.0",
+      "description": "Icon library"
+    },
+    {
+      "type": "library",
+      "group": "javascript",
+      "name": "typescript",
+      "version": "5.9.3",
+      "purl": "pkg:npm/typescript@5.9.3",
+      "description": "TypeScript compiler (dev)"
+    },
+    {
+      "type": "library",
+      "group": "javascript",
+      "name": "vite",
+      "version": "5.4.21",
+      "purl": "pkg:npm/vite@5.4.21",
+      "description": "Frontend build tool (dev)"
+    },
+    {
+      "type": "library",
+      "group": "javascript",
+      "name": "tailwindcss",
+      "version": "3.4.19",
+      "purl": "pkg:npm/tailwindcss@3.4.19",
+      "description": "Utility-first CSS framework (dev)"
+    },
+    {
+      "type": "library",
+      "group": "javascript",
+      "name": "@vitejs/plugin-react",
+      "version": "4.3.1",
+      "purl": "pkg:npm/%40vitejs%2Fplugin-react@4.3.1",
+      "description": "Vite React fast-refresh plugin (dev)"
+    },
+    {
+      "type": "library",
+      "group": "javascript",
+      "name": "postcss",
+      "version": "8.5.15",
+      "purl": "pkg:npm/postcss@8.5.15",
+      "description": "CSS processing (dev)"
+    },
+    {
+      "type": "library",
+      "group": "javascript",
+      "name": "autoprefixer",
+      "version": "10.5.0",
+      "purl": "pkg:npm/autoprefixer@10.5.0",
+      "description": "CSS vendor prefix automation (dev)"
+    },
+    {
+      "type": "framework",
+      "group": "tools",
+      "name": "kubectl",
+      "version": "1.31.0",
+      "purl": "pkg:generic/kubectl@1.31.0?download_url=https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl",
+      "description": "Kubernetes CLI — bundled in api-gateway container for workload cluster operations"
+    },
+    {
+      "type": "framework",
+      "group": "tools",
+      "name": "PowerShell",
+      "version": "7.x",
+      "purl": "pkg:generic/powershell@7",
+      "description": "PowerShell Core — installed in powercli service via Microsoft Debian packages"
+    },
+    {
+      "type": "library",
+      "group": "tools",
+      "name": "VMware.PowerCLI",
+      "version": "13.3.0.24145081",
+      "purl": "pkg:psmodule/VMware.PowerCLI@13.3.0.24145081",
+      "description": "VMware vSphere automation module for PowerShell"
+    },
+    {
+      "type": "service",
+      "group": "ai-models",
+      "name": "Ollama",
+      "version": ">=0.3.0",
+      "purl": "pkg:generic/ollama",
+      "description": "Local LLM inference server — primary AI backend (self-hosted)"
+    },
+    {
+      "type": "service",
+      "group": "ai-models",
+      "name": "qwen2.5-coder",
+      "version": "7b",
+      "purl": "pkg:generic/qwen2.5-coder@7b",
+      "description": "Default Ollama model for kubectl generation and agent tasks"
+    },
+    {
+      "type": "service",
+      "group": "ai-models",
+      "name": "qwen2.5",
+      "version": "14b",
+      "purl": "pkg:generic/qwen2.5@14b",
+      "description": "Alternative Ollama model (configurable via vllm_model in settings)"
+    },
+    {
+      "type": "service",
+      "group": "ai-apis",
+      "name": "Anthropic Claude API",
+      "version": "claude-sonnet-4-6",
+      "purl": "pkg:generic/anthropic-claude@claude-sonnet-4-6",
+      "description": "Cloud LLM provider — optional, activated via API key in Settings"
+    },
+    {
+      "type": "service",
+      "group": "ai-apis",
+      "name": "OpenAI API",
+      "version": "gpt-4o",
+      "purl": "pkg:generic/openai@gpt-4o",
+      "description": "Cloud LLM provider — optional, activated via API key in Settings"
+    },
+    {
+      "type": "service",
+      "group": "ai-apis",
+      "name": "Google Gemini API",
+      "version": "gemini-2.0-flash",
+      "purl": "pkg:generic/google-gemini@gemini-2.0-flash",
+      "description": "Cloud LLM provider — optional, activated via API key in Settings"
+    }
+  ]
+}

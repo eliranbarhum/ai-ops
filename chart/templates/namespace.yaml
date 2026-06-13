@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "mco.namespace" . }}
+  labels:
+    {{- include "mco.labels" . | nindent 4 }}
+    {{- if .Values.linkerd.enabled }}
+    linkerd.io/inject: enabled
+    {{- end }}
