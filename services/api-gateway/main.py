@@ -105,9 +105,9 @@ async def audit_middleware(request: Request, call_next):
     ) and not path.startswith("/api/v1/audit")
 
     user_id = (
-        request.headers.get("x-forwarded-preferred-username")
-        or request.headers.get("x-forwarded-email")
+        request.headers.get("x-forwarded-email")
         or request.headers.get("x-auth-request-email")
+        or request.headers.get("x-forwarded-preferred-username")
         or request.headers.get("x-forwarded-user")
         or "anonymous"
     )
