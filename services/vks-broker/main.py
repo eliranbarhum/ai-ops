@@ -19,8 +19,8 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from contextlib import asynccontextmanager
 
 from broker import (
-    get_cluster_client, get_cluster_parsed_info, get_supervisor_client, invalidate_cluster,
-    kube_apply, kube_delete, kube_get, kube_list, kube_logs, kube_patch,
+    get_cluster_client, get_cluster_parsed_info, get_supervisor_client, reset_supervisor_client,
+    invalidate_cluster, kube_apply, kube_delete, kube_get, kube_list, kube_logs, kube_patch,
     list_clusters, add_imported_cluster, remove_imported_cluster,
     list_imported_clusters, load_imported_from_secret, KubeForbiddenError,
 )
@@ -33,11 +33,35 @@ logger = logging.getLogger("vks-broker")
 LLM_GATEWAY_URL = os.getenv("LLM_GATEWAY_URL", "http://llm-gateway:8008")
 
 
+_SUPERVISOR_RESET_INTERVAL = int(os.getenv("SUPERVISOR_TOKEN_RESET_INTERVAL", "2400"))  # 40 min
+
+
+async def _supervisor_token_reset_loop():
+    """Proactively reset the supervisor client before the WCP session idle-expires.
+    The token-refresher CronJob writes a fresh token every 45 min; we reset the
+    in-memory client every 40 min so it always re-reads the latest token from the
+    mounted secret — no 401 required to trigger the refresh."""
+    await asyncio.sleep(_SUPERVISOR_RESET_INTERVAL)
+    while True:
+        try:
+            await reset_supervisor_client()
+            logger.info("Supervisor client proactively reset — will re-read token on next request")
+        except Exception as e:
+            logger.warning("Supervisor client reset failed: %s", e)
+        await asyncio.sleep(_SUPERVISOR_RESET_INTERVAL)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await load_imported_from_secret()
     logger.info("Imported clusters loaded from secret")
+    reset_task = asyncio.create_task(_supervisor_token_reset_loop())
     yield
+    reset_task.cancel()
+    try:
+        await reset_task
+    except asyncio.CancelledError:
+        pass
 
 
 app = FastAPI(title="VKS Broker", version="1.0.0", lifespan=lifespan)
