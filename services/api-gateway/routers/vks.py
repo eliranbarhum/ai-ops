@@ -92,6 +92,11 @@ async def vks_clusters(request: Request):
     return await _vks_proxy("GET", "/clusters", request)
 
 
+@router.post("/api/v1/vks/supervisor/reconnect")
+async def vks_supervisor_reconnect(request: Request):
+    return await _vks_proxy("POST", "/supervisor/reconnect", request)
+
+
 @router.post("/api/v1/vks/clusters/import")
 async def vks_import_cluster(request: Request):
     return await _vks_proxy("POST", "/clusters/import", request, body=await request.json())

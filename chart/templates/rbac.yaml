@@ -56,3 +56,36 @@ subjects:
   - kind: ServiceAccount
     name: mco
     namespace: {{ include "mco.namespace" . }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mco-supervisor-reconnect
+  namespace: {{ include "mco.namespace" . }}
+  labels:
+    {{- include "mco.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["vsphere-credentials"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["kubectl-config"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mco-supervisor-reconnect
+  namespace: {{ include "mco.namespace" . }}
+  labels:
+    {{- include "mco.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: mco-supervisor-reconnect
+subjects:
+  - kind: ServiceAccount
+    name: mco
+    namespace: {{ include "mco.namespace" . }}

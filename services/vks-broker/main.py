@@ -243,6 +243,75 @@ async def get_clusters():
     return result
 
 
+@app.post("/supervisor/reconnect")
+async def supervisor_reconnect(request: Request):
+    """Force a WCP re-login using credentials stored in K8s secrets/configmap.
+    Reads VSPHERE_HOST, VSPHERE_USERNAME from env (injected from mco-config) and
+    VSPHERE_PASSWORD from the vsphere-credentials secret via the in-cluster API.
+    No credentials are accepted from or returned to the caller."""
+    import base64 as _b64
+    import httpx as _httpx
+
+    host = os.getenv("VSPHERE_SUPERVISOR_HOST", "").strip()
+    username = os.getenv("VSPHERE_SUPERVISOR_USERNAME", "").strip()
+    if not host or not username:
+        raise HTTPException(503, "VSPHERE_SUPERVISOR_HOST / VSPHERE_SUPERVISOR_USERNAME not configured")
+
+    # Read password from vsphere-credentials secret via in-cluster API
+    ns_file = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
+    ns = open(ns_file).read().strip() if os.path.exists(ns_file) else os.getenv("POD_NAMESPACE", "vcf-ai-ops")
+    secret = await _k8s_api("GET", f"/api/v1/namespaces/{ns}/secrets/vsphere-credentials")
+    if not secret:
+        raise HTTPException(503, "vsphere-credentials secret not found or not accessible")
+    password_b64 = secret.get("data", {}).get("password", "")
+    if not password_b64:
+        raise HTTPException(503, "vsphere-credentials secret has no 'password' key")
+    password = _b64.b64decode(password_b64).decode()
+
+    # WCP login
+    try:
+        async with _httpx.AsyncClient(verify=False, timeout=20.0) as client:
+            resp = await client.post(
+                f"https://{host}/wcp/login",
+                auth=(username, password),
+            )
+        resp.raise_for_status()
+        data = resp.json()
+        token = data.get("session_id") or data.get("token")
+        if not token:
+            raise HTTPException(502, f"WCP login returned no token. Keys: {list(data.keys())}")
+    except _httpx.HTTPStatusError as e:
+        raise HTTPException(502, f"WCP login failed: {e.response.status_code}")
+    except Exception as e:
+        raise HTTPException(502, f"WCP login error: {e}")
+
+    # Patch kubectl-config secret with fresh token
+    kc_secret = await _k8s_api("GET", f"/api/v1/namespaces/{ns}/secrets/kubectl-config")
+    if not kc_secret:
+        raise HTTPException(503, "kubectl-config secret not found")
+    import yaml as _yaml2, base64 as _b64b
+    raw = _b64b.b64decode(kc_secret["data"]["config"]).decode()
+    kube_cfg = _yaml2.safe_load(raw)
+    user_key = f"wcp:{host}:{username}"
+    updated = False
+    for u in kube_cfg.get("users", []):
+        if u.get("name") == user_key:
+            u["user"]["token"] = token
+            updated = True
+            break
+    if not updated:
+        raise HTTPException(500, f"User {user_key!r} not found in kubectl-config kubeconfig")
+    new_b64 = _b64b.b64encode(_yaml2.dump(kube_cfg, default_flow_style=False).encode()).decode()
+    patch = {"data": {"config": new_b64}}
+    await _k8s_api("PATCH", f"/api/v1/namespaces/{ns}/secrets/kubectl-config", patch)
+
+    # Reset in-memory client so next request picks up the new token
+    await reset_supervisor_client()
+    user = _user(request)
+    logger.info("Supervisor reconnected by %s", user)
+    return {"ok": True, "message": "Supervisor reconnected — new WCP token active"}
+
+
 @app.post("/clusters/import")
 async def import_cluster(request: Request):
     """Import a cluster by pasting its kubeconfig. Works independently of the supervisor."""

@@ -13096,6 +13096,15 @@ export function PlatformPage() {
       .finally(() => setClustersLoading(false))
   }, [])
 
+  const [reconnecting, setReconnecting] = useState(false)
+  const reconnectSupervisor = useCallback(() => {
+    setReconnecting(true)
+    vksPost('supervisor/reconnect')
+      .then(() => { toast.success('Supervisor reconnected'); loadClusters() })
+      .catch(e => toast.error(`Reconnect failed: ${e?.message ?? e}`))
+      .finally(() => setReconnecting(false))
+  }, [loadClusters, toast])
+
   // Load clusters
   useEffect(() => { loadClusters() }, [loadClusters])
 
@@ -13291,7 +13300,14 @@ export function PlatformPage() {
             {supervisorErr && (
               <div className="mb-2 flex items-start gap-1.5 px-2 py-1.5 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
                 <AlertTriangle size={11} className="text-yellow-400 flex-shrink-0 mt-0.5" />
-                <span className="text-[10px] text-yellow-400 leading-tight">Supervisor unreachable — imported clusters still available</span>
+                <div className="flex flex-col gap-1 min-w-0">
+                  <span className="text-[10px] text-yellow-400 leading-tight">Supervisor unreachable — imported clusters still available</span>
+                  <button
+                    onClick={reconnectSupervisor}
+                    disabled={reconnecting}
+                    className="text-[10px] text-yellow-300 hover:text-yellow-100 underline text-left disabled:opacity-50"
+                  >{reconnecting ? 'Reconnecting…' : 'Reconnect'}</button>
+                </div>
               </div>
             )}
             {clustersLoading ? (
@@ -13461,10 +13477,15 @@ export function PlatformPage() {
                   {supervisorErr && (
                     <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-xs text-yellow-400 mb-4">
                       <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
-                      <div>
+                      <div className="flex-1">
                         <span className="font-semibold">Supervisor unreachable:</span> {supervisorErr}<br />
                         <span className="text-yellow-500/70">Imported clusters are still available. Use the + button to add clusters via kubeconfig.</span>
                       </div>
+                      <button
+                        onClick={reconnectSupervisor}
+                        disabled={reconnecting}
+                        className="flex-shrink-0 px-2.5 py-1 bg-yellow-500/20 hover:bg-yellow-500/30 border border-yellow-500/40 rounded text-[11px] text-yellow-300 font-medium transition-colors disabled:opacity-50"
+                      >{reconnecting ? 'Reconnecting…' : 'Reconnect'}</button>
                     </div>
                   )}
                   <ClusterPicker clusters={clusters} selected={selectedCluster} onSelect={selectCluster} />
