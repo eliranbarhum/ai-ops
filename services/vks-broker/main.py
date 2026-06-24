@@ -20,9 +20,10 @@ from contextlib import asynccontextmanager
 
 from broker import (
     get_cluster_client, get_cluster_parsed_info, get_supervisor_client, reset_supervisor_client,
+    reset_supervisor_client_with_kubeconfig,
     invalidate_cluster, kube_apply, kube_delete, kube_get, kube_list, kube_logs, kube_patch,
     list_clusters, add_imported_cluster, remove_imported_cluster,
-    list_imported_clusters, load_imported_from_secret, KubeForbiddenError,
+    list_imported_clusters, load_imported_from_secret, KubeForbiddenError, _k8s_api,
 )
 from confirm import consume_token, issue_token
 from audit import emit as audit_emit, get_recent as audit_get_recent
@@ -252,14 +253,51 @@ async def supervisor_reconnect(request: Request):
     import base64 as _b64
     import httpx as _httpx
 
-    host = os.getenv("VSPHERE_SUPERVISOR_HOST", "").strip()
-    username = os.getenv("VSPHERE_SUPERVISOR_USERNAME", "").strip()
-    if not host or not username:
-        raise HTTPException(503, "VSPHERE_SUPERVISOR_HOST / VSPHERE_SUPERVISOR_USERNAME not configured")
-
-    # Read password from vsphere-credentials secret via in-cluster API
     ns_file = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
     ns = open(ns_file).read().strip() if os.path.exists(ns_file) else os.getenv("POD_NAMESPACE", "vcf-ai-ops")
+
+    # Read kubectl-config secret to extract host + username (encoded in the user entry name)
+    import yaml as _yaml2, base64 as _b64b
+    kc_secret = await _k8s_api("GET", f"/api/v1/namespaces/{ns}/secrets/kubectl-config")
+    if not kc_secret:
+        raise HTTPException(503, "kubectl-config secret not found")
+    raw = _b64b.b64decode(kc_secret["data"]["config"]).decode()
+    kube_cfg = _yaml2.safe_load(raw)
+
+    import urllib.parse as _urlparse
+
+    # The kubeconfig may contain multiple clusters (supervisor VIP on :443 and control-plane
+    # nodes on :6443). Prefer the one named "supervisor-*" or listening on port 443, as that
+    # is the publicly reachable VIP used for the WCP login REST endpoint.
+    def _pick_supervisor_server(clusters: list) -> str:
+        by_name = next((c["cluster"]["server"] for c in clusters
+                        if c.get("name", "").startswith("supervisor-")), None)
+        if by_name:
+            return by_name
+        by_port = next((c["cluster"]["server"] for c in clusters
+                        if _urlparse.urlparse(c["cluster"].get("server", "")).port in (443, None)), None)
+        return by_port or (clusters[0]["cluster"]["server"] if clusters else "")
+
+    clusters = kube_cfg.get("clusters") or []
+    cluster_server = _pick_supervisor_server(clusters)
+    host = _urlparse.urlparse(cluster_server).hostname or ""
+    if not host:
+        raise HTTPException(503, "Could not determine supervisor host from kubectl-config kubeconfig")
+
+    # Find the WCP user entry matching this host: name format is "wcp:<ip>:<username>"
+    wcp_user = next((u for u in kube_cfg.get("users", [])
+                     if u.get("name", "").startswith(f"wcp:{host}:")), None)
+    if not wcp_user:
+        # Fall back to any WCP user
+        wcp_user = next((u for u in kube_cfg.get("users", []) if u.get("name", "").startswith("wcp:")), None)
+    if not wcp_user:
+        raise HTTPException(503, "No WCP user entry found in kubectl-config kubeconfig")
+    parts = wcp_user["name"].split(":", 2)
+    if len(parts) != 3:
+        raise HTTPException(503, f"Unexpected WCP user name format: {wcp_user['name']!r}")
+    username = parts[2]
+
+    # Read password from vsphere-credentials secret
     secret = await _k8s_api("GET", f"/api/v1/namespaces/{ns}/secrets/vsphere-credentials")
     if not secret:
         raise HTTPException(503, "vsphere-credentials secret not found or not accessible")
@@ -283,30 +321,25 @@ async def supervisor_reconnect(request: Request):
     except _httpx.HTTPStatusError as e:
         raise HTTPException(502, f"WCP login failed: {e.response.status_code}")
     except Exception as e:
-        raise HTTPException(502, f"WCP login error: {e}")
+        raise HTTPException(502, f"WCP login error [{type(e).__name__}]: {e!r}")
 
     # Patch kubectl-config secret with fresh token
-    kc_secret = await _k8s_api("GET", f"/api/v1/namespaces/{ns}/secrets/kubectl-config")
-    if not kc_secret:
-        raise HTTPException(503, "kubectl-config secret not found")
-    import yaml as _yaml2, base64 as _b64b
-    raw = _b64b.b64decode(kc_secret["data"]["config"]).decode()
-    kube_cfg = _yaml2.safe_load(raw)
-    user_key = f"wcp:{host}:{username}"
     updated = False
     for u in kube_cfg.get("users", []):
-        if u.get("name") == user_key:
+        if u.get("name") == wcp_user["name"]:
             u["user"]["token"] = token
             updated = True
             break
     if not updated:
-        raise HTTPException(500, f"User {user_key!r} not found in kubectl-config kubeconfig")
-    new_b64 = _b64b.b64encode(_yaml2.dump(kube_cfg, default_flow_style=False).encode()).decode()
+        raise HTTPException(500, f"Could not update token for user {wcp_user['name']!r}")
+    updated_yaml = _yaml2.dump(kube_cfg, default_flow_style=False)
+    new_b64 = _b64b.b64encode(updated_yaml.encode()).decode()
     patch = {"data": {"config": new_b64}}
     await _k8s_api("PATCH", f"/api/v1/namespaces/{ns}/secrets/kubectl-config", patch)
 
-    # Reset in-memory client so next request picks up the new token
-    await reset_supervisor_client()
+    # Rebuild in-memory client immediately from the updated kubeconfig YAML so the new
+    # token is active right away, without waiting for the secret-mount propagation (~60s).
+    await reset_supervisor_client_with_kubeconfig(updated_yaml)
     user = _user(request)
     logger.info("Supervisor reconnected by %s", user)
     return {"ok": True, "message": "Supervisor reconnected — new WCP token active"}

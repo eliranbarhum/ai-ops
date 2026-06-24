@@ -174,6 +174,22 @@ async def reset_supervisor_client():
         _supervisor_client = None
 
 
+async def reset_supervisor_client_with_kubeconfig(kubeconfig_yaml: str):
+    """Replace the in-memory supervisor client immediately using a fresh kubeconfig YAML.
+
+    Used by the reconnect endpoint so the new WCP token takes effect right away,
+    without waiting for the Kubernetes secret-mount propagation delay (~60s).
+    """
+    global _supervisor_client
+    parsed = _parse_kubeconfig_yaml(kubeconfig_yaml)
+    new_client = _build_client(parsed)
+    async with _supervisor_lock:
+        if _supervisor_client:
+            await _supervisor_client.aclose()
+        _supervisor_client = new_client
+    logger.info("Supervisor client rebuilt in-memory after reconnect: %s", parsed["server"])
+
+
 # ── Tenant cluster client cache ──────────────────────────────────────────────
 
 # {cluster_id: (client, expires_at)}
